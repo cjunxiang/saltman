@@ -66,7 +66,3 @@ This compiles TypeScript to JavaScript in the `dist/` directory.
 ### Testing
 
 The action includes a test workflow (`.github/workflows/test.yml`) that you can use to test the action in your repository.
-
-## License
-
-MIT
