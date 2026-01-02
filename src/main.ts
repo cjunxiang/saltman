@@ -1,10 +1,10 @@
-import * as core from '@actions/core';
-import * as github from '@actions/github';
+import * as core from "@actions/core";
+import * as github from "@actions/github";
 
 async function run(): Promise<void> {
   try {
     // Get inputs
-    const token = core.getInput('github-token', { required: true });
+    const token = core.getInput("github-token", { required: true });
 
     // Initialize GitHub client
     const octokit = github.getOctokit(token);
@@ -12,7 +12,7 @@ async function run(): Promise<void> {
 
     // Ensure this is running on a pull request
     if (!context.payload.pull_request) {
-      core.setFailed('This action must be run on a pull request event');
+      core.setFailed("This action must be run on a pull request event");
       return;
     }
 
@@ -46,22 +46,19 @@ async function run(): Promise<void> {
     });
 
     // Set output
-    core.setOutput('result', analysis);
+    core.setOutput("result", analysis);
 
-    core.info('Analysis complete and comment posted');
+    core.info("Analysis complete and comment posted");
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message);
     } else {
-      core.setFailed('Unknown error occurred');
+      core.setFailed("Unknown error occurred");
     }
   }
 }
 
-function analyzePR(
-  pr: any,
-  files: any[]
-): string {
+function analyzePR(pr: any, files: any[]): string {
   // Basic analysis - this is where you'd implement your custom logic
   const fileCount = files.length;
   const additions = files.reduce((sum, file) => sum + (file.additions || 0), 0);
@@ -80,4 +77,3 @@ function analyzePR(
 
 // Execute the action
 run();
-
