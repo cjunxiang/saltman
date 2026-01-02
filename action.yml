@@ -1,5 +1,8 @@
 name: 'Saltman'
 description: 'Analyzes PR content and posts results as a comment'
+branding:
+  icon: 'shield'
+  color: 'blue'
 inputs:
   github-token:
     description: 'GitHub token for API access'

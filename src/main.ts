@@ -10,29 +10,116 @@ async function run(): Promise<void> {
     const octokit = github.getOctokit(token);
     const context = github.context;
 
-    // Ensure this is running on a pull request
-    if (!context.payload.pull_request) {
-      core.setFailed("This action must be run on a pull request event");
-      return;
-    }
-
-    const prNumber = context.payload.pull_request.number;
     const owner = context.repo.owner;
     const repo = context.repo.repo;
 
-    // Fetch PR details
-    const { data: pr } = await octokit.rest.pulls.get({
-      owner,
-      repo,
-      pull_number: prNumber,
-    });
+    // Determine the user to check permissions for
+    let username: string;
+    let prNumber: number | undefined;
+
+    if (context.payload.pull_request) {
+      // PR event - check PR author
+      prNumber = context.payload.pull_request.number;
+      username = context.payload.pull_request.user.login;
+    } else if (context.eventName === "push") {
+      // Push event - check the actor who triggered the workflow
+      username = context.actor;
+      // For push events, we might not have a PR number
+      core.info(`Checking permissions for push event by ${username}`);
+    } else {
+      core.setFailed("This action must be run on a pull request or push event");
+      return;
+    }
+
+    // Check if user has write access to the repository
+    try {
+      const { data: permission } = await octokit.rest.repos.getCollaboratorPermissionLevel({
+        owner,
+        repo,
+        username,
+      });
+
+      const hasWriteAccess =
+        permission.permission === "write" ||
+        permission.permission === "maintain" ||
+        permission.permission === "admin";
+
+      if (!hasWriteAccess) {
+        core.info(
+          `User ${username} does not have write access to ${owner}/${repo}. Skipping action.`,
+        );
+        return;
+      }
+
+      core.info(`User ${username} has ${permission.permission} access. Proceeding with action.`);
+    } catch (error) {
+      // If we can't check permissions (e.g., user is not a collaborator), skip
+      // Octokit errors have a `status` property for HTTP status codes
+      if (error && typeof error === "object" && "status" in error && error.status === 404) {
+        core.info(
+          `User ${username} is not a collaborator or does not have write access. Skipping action.`,
+        );
+        return;
+      }
+      throw error;
+    }
+
+    // If this is not a PR event, we can't proceed with PR analysis
+    if (!prNumber) {
+      core.info("Push event detected but PR analysis requires a pull request. Skipping.");
+      return;
+    }
+
+    // Fetch PR details (we know prNumber is defined here due to the check above)
+    let pr;
+    try {
+      const response = await octokit.rest.pulls.get({
+        owner,
+        repo,
+        pull_number: prNumber!,
+      });
+      pr = response.data;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes("Resource not accessible by integration")
+      ) {
+        core.setFailed(
+          "Permission denied: The GitHub token does not have sufficient permissions. " +
+            "Please ensure the workflow has 'pull-requests: read' permission. " +
+            "Add this to your workflow:\n" +
+            "permissions:\n" +
+            "  pull-requests: write\n" +
+            "  contents: read\n" +
+            "  issues: write",
+        );
+        return;
+      }
+      throw error;
+    }
 
     // Fetch PR files
-    const { data: files } = await octokit.rest.pulls.listFiles({
-      owner,
-      repo,
-      pull_number: prNumber,
-    });
+    let files;
+    try {
+      const response = await octokit.rest.pulls.listFiles({
+        owner,
+        repo,
+        pull_number: prNumber!,
+      });
+      files = response.data;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes("Resource not accessible by integration")
+      ) {
+        core.setFailed(
+          "Permission denied: The GitHub token does not have sufficient permissions to list PR files. " +
+            "Please ensure the workflow has 'pull-requests: read' permission.",
+        );
+        return;
+      }
+      throw error;
+    }
 
     // Process/analyze PR content
     const analysis = analyzePR(pr, files);
@@ -41,7 +128,7 @@ async function run(): Promise<void> {
     await octokit.rest.issues.createComment({
       owner,
       repo,
-      issue_number: prNumber,
+      issue_number: prNumber!,
       body: analysis,
     });
 
