@@ -5,14 +5,21 @@ import { validateUserAccess } from "./validateUserAccess";
 import { validatePullRequestAccess } from "./validatePullRequestAccess";
 import { analyzePR } from "./analyzePR";
 import { getPullRequestFiles } from "./getPullRequestFiles";
+import { validateGithubInputs } from "./validations/githubInputs";
 
 async function run(): Promise<void> {
   try {
     // Get inputs
     const token = core.getInput("github-token", { required: true });
+    const openaiApiKey = core.getInput("openai-api-key", { required: true });
+
+    const { token: validatedToken, apiKey: validatedApiKey } = validateGithubInputs({
+      token,
+      apiKey: openaiApiKey,
+    });
 
     // Initialize GitHub client
-    const octokit = github.getOctokit(token);
+    const octokit = github.getOctokit(validatedToken);
     const context = github.context;
 
     const { prNumber, username } = getContextValues({ context });
@@ -23,9 +30,17 @@ async function run(): Promise<void> {
     await validateUserAccess({ octokit, owner, repo, username });
     await validatePullRequestAccess({ octokit, owner, repo, prNumber });
 
+    // Get PR details to get head SHA for permalinks
+    const prResponse = await octokit.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: prNumber,
+    });
+    const headSha = prResponse.data.head.sha;
+
     const files = await getPullRequestFiles({ octokit, owner, repo, prNumber });
 
-    const analysis = analyzePR({ files });
+    const analysis = await analyzePR({ files, apiKey: validatedApiKey, owner, repo, headSha });
 
     // Post comment to PR
     await octokit.rest.issues.createComment({
