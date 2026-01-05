@@ -6,20 +6,23 @@ import { validatePullRequestAccess } from "./validations/validatePullRequestAcce
 import { analyzePR } from "./analyzePR";
 import { getPullRequestFiles } from "./getPullRequestFiles";
 import { validateGithubInputs } from "./validations/githubInputs";
+import { getSaltmanFooter } from "./responses/shared";
 
 async function run(): Promise<void> {
   try {
     // Get inputs
-    const token = core.getInput("github-token", { required: true });
-    const openaiApiKey = core.getInput("openai-api-key", { required: true });
+    const inputToken = core.getInput("github-token", { required: true });
+    const inputOpenaiApiKey = core.getInput("openai-api-key", { required: true });
+    const inputPostCommentWhenNoIssues = core.getInput("post-comment-when-no-issues");
 
-    const { token: validatedToken, apiKey: validatedApiKey } = validateGithubInputs({
-      token,
-      apiKey: openaiApiKey,
+    const { token, apiKey, postCommentWhenNoIssues } = validateGithubInputs({
+      token: inputToken,
+      apiKey: inputOpenaiApiKey,
+      postCommentWhenNoIssues: inputPostCommentWhenNoIssues,
     });
 
     // Initialize GitHub client
-    const octokit = github.getOctokit(validatedToken);
+    const octokit = github.getOctokit(token);
     const context = github.context;
 
     const { prNumber, username } = getContextValues({ context });
@@ -40,15 +43,26 @@ async function run(): Promise<void> {
 
     const files = await getPullRequestFiles({ octokit, owner, repo, prNumber });
 
-    const analysis = await analyzePR({ files, apiKey: validatedApiKey, owner, repo, headSha });
+    const analysis = await analyzePR({ files, apiKey, owner, repo, headSha });
 
-    // Post comment to PR
-    await octokit.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body: analysis,
-    });
+    // Always post comment when issues are detected, or when no issues are detected and postCommentWhenNoIssues is enabled
+    if (analysis !== null) {
+      // Issues detected - always post
+      await octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: prNumber,
+        body: analysis,
+      });
+    } else if (postCommentWhenNoIssues) {
+      // No issues detected - only post if postCommentWhenNoIssues is enabled
+      await octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: prNumber,
+        body: `## Saltman Code Review\n\nNo issues detected! 🎉\n\n${getSaltmanFooter({ owner, repo, commitSha: headSha })}`,
+      });
+    }
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message);
