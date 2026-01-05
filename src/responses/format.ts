@@ -7,7 +7,6 @@ import type {
   Impact,
   SecurityCategory,
 } from "../types";
-import { SEVERITY_VALUES } from "../types";
 
 interface FormatReviewResponseProps {
   review: ParsedReview;
