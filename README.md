@@ -9,6 +9,7 @@ A GitHub Action that analyzes code changes for security vulnerabilities and post
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
 - [Features](#features)
+- [Tech Stack](#tech-stack)
 - [Usage](#usage)
   - [Publishing Your Action](#publishing-your-action)
   - [PR Mode (Default)](#pr-mode-default)
@@ -68,6 +69,32 @@ jobs:
   - Only runs when the pushed branch matches the specified `target-branch`
 - **AI-powered security code review** using OpenAI (recommended), Anthropic Claude Opus, or any OpenAI-compatible API provider - focused on identifying security vulnerabilities and risks
 - **File ignore patterns** - Exclude files from analysis using glob patterns (similar to `.eslintignore` or `.gitignore`)
+
+## Tech Stack
+
+Saltman is built with modern TypeScript and leverages the following technologies:
+
+### Core
+- 🔷 **TypeScript** - Type-safe development with ES2020 target
+- 🚀 **Bun** - Fast JavaScript runtime and package manager
+- ⚙️ **GitHub Actions** - Composite action for seamless integration
+
+### LLM Integration
+- 🤖 **OpenAI SDK** - Primary LLM provider for code analysis
+- 🧠 **Anthropic SDK** - Alternative provider support (Claude Opus)
+- 🔌 **Vercel AI SDK** - Unified AI SDK with OpenAI-compatible provider support for flexible model integration
+
+### GitHub Integration
+- 📦 **@actions/core** - GitHub Actions core utilities
+- 🐙 **@actions/github** - GitHub API client for PRs, issues, and comments
+
+### Utilities
+- ✅ **Zod** - Runtime type validation and schema validation
+- 🔍 **minimatch** - Glob pattern matching for file filtering
+
+### Development Tools
+- 🔎 **oxlint** - Ultra-fast Rust-based linter for JavaScript and TypeScript
+- 🎨 **oxfmt** - High-performance Rust-based code formatter
 
 ## Usage
 
