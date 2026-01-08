@@ -42,8 +42,6 @@ const zod_1 = require("openai/helpers/zod");
 const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
 const core = __importStar(require("@actions/core"));
 const zod_2 = require("@anthropic-ai/sdk/helpers/beta/zod");
-const openai_compatible_1 = require("@ai-sdk/openai-compatible");
-const ai_1 = require("ai");
 const format_1 = require("./responses/format");
 const inline_1 = require("./responses/inline");
 const aggregated_1 = require("./responses/aggregated");
@@ -108,22 +106,30 @@ const callAnthropic = async (apiKey, model, diff) => {
 };
 const callOpenAICompatible = async (apiKey, baseUrl, model, diff) => {
     core.info(`📡 Calling OpenAI-compatible API at ${baseUrl} with model: ${model}`);
-    const openaiCompatible = (0, openai_compatible_1.createOpenAICompatible)({
-        name: "openai-compatible",
-        baseURL: baseUrl,
+    const openai = new openai_1.default({
         apiKey: apiKey,
-        supportsStructuredOutputs: true,
+        baseURL: baseUrl,
     });
-    const { object } = await (0, ai_1.generateObject)({
-        model: openaiCompatible.chatModel(model),
-        system: (0, prompts_1.getSystemMessage)(),
-        prompt: (0, prompts_1.buildAnalysisPrompt)(diff),
-        schema: types_1.ReviewResponseSchema,
+    const response = await openai.chat.completions.create({
+        model: model,
+        messages: [
+            {
+                role: "system",
+                content: (0, prompts_1.getSystemMessage)(),
+            },
+            {
+                role: "user",
+                content: (0, prompts_1.buildAnalysisPrompt)(diff),
+            },
+        ],
+        response_format: { type: "json_object" },
     });
-    if (!object) {
-        throw new Error("Model response could not be parsed. The model may have refused to respond or the response format was invalid.");
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+        throw new Error("Model response was empty or invalid.");
     }
-    return object;
+    const parsed = JSON.parse(content);
+    return types_1.ReviewResponseSchema.parse(parsed);
 };
 const analyzePR = async ({ files, apiKey, owner, repo, headSha, provider, baseUrl, model, pingUsers, severityFilter, }) => {
     // Filter out files without patches (binary files, etc.)

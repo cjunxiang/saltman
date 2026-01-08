@@ -108,27 +108,34 @@ const callOpenAICompatible = async (
   diff: string,
 ): Promise<ParsedReview> => {
   core.info(`📡 Calling OpenAI-compatible API at ${baseUrl} with model: ${model}`);
-  const openaiCompatible = createOpenAICompatible({
-    name: "openai-compatible",
-    baseURL: baseUrl,
+
+  const openai = new OpenAI({
     apiKey: apiKey,
-    supportsStructuredOutputs: true,
+    baseURL: baseUrl,
   });
 
-  const { object } = await generateObject({
-    model: openaiCompatible.chatModel(model),
-    system: getSystemMessage(),
-    prompt: buildAnalysisPrompt(diff),
-    schema: ReviewResponseSchema,
+  const response = await openai.chat.completions.create({
+    model: model,
+    messages: [
+      {
+        role: "system",
+        content: getSystemMessage(),
+      },
+      {
+        role: "user",
+        content: buildAnalysisPrompt(diff),
+      },
+    ],
+    response_format: { type: "json_object" },
   });
 
-  if (!object) {
-    throw new Error(
-      "Model response could not be parsed. The model may have refused to respond or the response format was invalid.",
-    );
+  const content = response.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error("Model response was empty or invalid.");
   }
 
-  return object as ParsedReview;
+  const parsed = JSON.parse(content);
+  return ReviewResponseSchema.parse(parsed);
 };
 
 export const analyzePR = async ({
