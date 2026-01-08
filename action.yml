@@ -39,15 +39,11 @@ runs:
   steps:
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
-    - name: Install dependencies
-      shell: bash
-      run: bun install --frozen-lockfile
-    - name: Build
-      shell: bash
-      run: bun run build
     - name: Run action
       shell: bash
-      run: bun dist/main.js
+      run: |
+        cd "${{ github.action_path }}"
+        bun run dist/main.js
       env:
         INPUT_GITHUB-TOKEN: ${{ inputs.github-token }}
         INPUT_PROVIDER: ${{ inputs.provider }}
