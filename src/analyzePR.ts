@@ -203,6 +203,7 @@ export const analyzePR = async ({
   model,
   pingUsers,
   severityFilter,
+  structuredOutputs,
 }: AnalyzePRWithContextProps): Promise<AnalysisResult | null> => {
   // Filter out files without patches (binary files, etc.)
   const filesWithPatches = files.filter((file: FileChange) => file.patch && file.patch.length > 0);
@@ -237,7 +238,7 @@ export const analyzePR = async ({
         if (!model) {
           throw new Error('model is required when provider is "openai-compatible"');
         }
-        parsedReview = await callOpenAICompatible(apiKey, baseUrl, model, diff);
+        parsedReview = await callOpenAICompatible(apiKey, baseUrl, model, diff, structuredOutputs);
         break;
       default:
         const _exhaustiveCheck: never = provider;
