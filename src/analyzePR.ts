@@ -17,9 +17,16 @@ import { estimateMaxTokens } from "./utils/estimateMaxTokens";
 import { filterIssuesBySeverity } from "./filterIssuesBySeverity";
 
 interface AnalyzePRWithContextProps
-  extends
-    AnalyzePRProps,
-    Pick<GithubInputs, "provider" | "baseUrl" | "model" | "pingUsers" | "severityFilter"> {
+  extends AnalyzePRProps,
+    Pick<
+      GithubInputs,
+      | "provider"
+      | "baseUrl"
+      | "model"
+      | "pingUsers"
+      | "severityFilter"
+      | "structuredOutputs"
+    > {
   owner: string;
   repo: string;
   headSha: string;
@@ -101,7 +108,7 @@ const callAnthropic = async (
   return ReviewResponseSchema.parse(parsed);
 };
 
-const callOpenAICompatible = async (
+const callOpenAICompatibleStructured = async (
   apiKey: string,
   baseUrl: string,
   model: string,
@@ -129,6 +136,60 @@ const callOpenAICompatible = async (
   }
 
   return object as ParsedReview;
+};
+
+const callOpenAICompatibleNonStructured = async (
+  apiKey: string,
+  baseUrl: string,
+  model: string,
+  diff: string
+): Promise<ParsedReview> => {
+  core.info(
+    `📡 Calling OpenAI-compatible API at ${baseUrl} with model: ${model} (JSON mode)`
+  );
+  core.info(`🔄 Using native OpenAI SDK with JSON mode`);
+
+  const openai = new OpenAI({
+    apiKey: apiKey,
+    baseURL: baseUrl,
+  });
+
+  const response = await openai.chat.completions.create({
+    model: model,
+    messages: [
+      {
+        role: "system",
+        content: getSystemMessage({ includeVerboseJsonInstructions: true }),
+      },
+      {
+        role: "user",
+        content: buildAnalysisPrompt(diff),
+      },
+    ],
+    response_format: { type: "json_object" },
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error("Model response was empty or invalid.");
+  }
+
+  const parsed = JSON.parse(content);
+  return ReviewResponseSchema.parse(parsed);
+};
+
+const callOpenAICompatible = async (
+  apiKey: string,
+  baseUrl: string,
+  model: string,
+  diff: string,
+  structuredOutputs: boolean
+): Promise<ParsedReview> => {
+  if (structuredOutputs) {
+    return callOpenAICompatibleStructured(apiKey, baseUrl, model, diff);
+  } else {
+    return callOpenAICompatibleNonStructured(apiKey, baseUrl, model, diff);
+  }
 };
 
 export const analyzePR = async ({
