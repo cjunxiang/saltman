@@ -15,6 +15,7 @@ import type { GithubInputs } from "./validations/githubInputs";
 import { getModelWithDefault } from "./validations/githubInputs";
 import { estimateMaxTokens } from "./utils/estimateMaxTokens";
 import { filterIssuesBySeverity } from "./filterIssuesBySeverity";
+import { sanitizeReviewResponse } from "./utils/sanitizeReviewResponse";
 
 interface AnalyzePRWithContextProps
   extends AnalyzePRProps,
@@ -184,7 +185,9 @@ const callOpenAICompatibleNonStructured = async (
   }
 
   const parsed = JSON.parse(content);
-  return ReviewResponseSchema.parse(parsed);
+  // Sanitize the response to fix invalid enum values (e.g., securityCategory arrays)
+  const sanitized = sanitizeReviewResponse(parsed);
+  return ReviewResponseSchema.parse(sanitized);
 };
 
 const callOpenAICompatible = async (
